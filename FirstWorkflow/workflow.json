@@ -10,7 +10,7 @@
                 },
                 "host": {
                     "connection": {
-                        "referenceName": "azureblobbb"
+                        "referenceName": "azureblob"
                     }
                 },
                 "method": "post",
