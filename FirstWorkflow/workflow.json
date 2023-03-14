@@ -1,182 +1,194 @@
-{
-  "definition": {
-      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
-      "actions": {
-        "Create_blob_(V2)": {
-            "inputs": {
-                "body": "@concat('<Document>',variables('FinalMessage'),'</Document>')",
-                "headers": {
-                    "ReadFileMetadataFromServer": true
-                },
-                "host": {
-                    "connection": {
-                        "referenceName": "azureblob"
+    {
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Create_blob": {
+                "inputs": {
+                    "body": "@concat('<Document>',variables('FinalMessage'),'</Document>')",
+                    "host": {
+                        "connection": {
+                            "referenceName": "azureblob"
+                        }
+                    },
+                    "method": "post",
+                    "path": "/datasets/default/files",
+                    "queries": {
+                        "folderPath": "/failedorders-wholesale-us",
+                        "name": "@variables('BlobName')",
+                        "queryParametersSingleEncoded": true
                     }
                 },
-                "method": "post",
-                "path": "/datasets/default/files",
-                "queries": {
-                    "folderPath": "/failedorders-wholesale-us",
-                    "name": "@variables('BlobName')",
-                    "queryParametersSingleEncoded": true
-                }
-            },
-            "runAfter": {
-                "Initialize_blob_name_variable": [
-                    "Succeeded"
-                ]
-            },
-            "runtimeConfiguration": {
-                "contentTransfer": {
-                    "transferMode": "Chunked"
-                }
-            },
-            "type": "ApiConnection"
-        },
-          "Delete_blob_if_successful": {
-            "inputs": {
-                "headers": {
-                    "SkipDeleteIfFileNotFoundOnServer": false
+                "runAfter": {
+                    "Initialize_blob_name_variable": [
+                        "Succeeded"
+                    ]
                 },
-                "host": {
-                    "connection": {
-                        "referenceName": "azureblob"
+                "runtimeConfiguration": {
+                    "contentTransfer": {
+                        "transferMode": "Chunked"
                     }
                 },
-                "method": "delete",
-                "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(concat('/failedorders-wholesale-us/', variables('BlobName'))))}"
+                "type": "ApiConnection"
             },
-            "runAfter": {
-                "Post_batch_to_D365_DIXF": [
-                    "Succeeded"
-                ]
+            "Delete_blob_if_successful": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "azureblob"
+                        }
+                    },
+                    "method": "delete",
+                    "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(concat('/failedorders-wholesale-us/', variables('BlobName'))))}"
+                },
+                "runAfter": {
+                    "Post_batch_to_D365_DIXF": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ApiConnection"
             },
-            "type": "ApiConnection"
+            "Get_secret_D365ClientId": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "keyvault"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/secrets/@{encodeURIComponent('D365ClientId')}/value"
+                },
+                "runAfter": {
+                    "Create_blob": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ApiConnection"
+            },
+            "Get_secret_D365Secret": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "keyvault"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/secrets/@{encodeURIComponent('D365Secret')}/value"
+                },
+                "runAfter": {
+                    "Get_secret_D365ClientId": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ApiConnection"
+            },
+            "Initialize_FinalMessage_variable": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "FinalMessage",
+                            "type": "String"
+                        }
+                    ]
+                },
+                "runAfter": {},
+                "type": "InitializeVariable"
+            },
+            "Initialize_blob_name_variable": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "BlobName",
+                            "type": "string",
+                            "value": "@{concat('1001-',guid('D'), '.xml')}"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Loop_through_each_message_and_form_batch": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "InitializeVariable"
+            },
+            "Loop_through_each_message_and_form_batch": {
+                "actions": {
+                    "Append_to_string_variable": {
+                        "inputs": {
+                            "name": "FinalMessage",
+                            "value": "@string(first(xpath(xml(items('Loop_through_each_message_and_form_batch')['content']), '//patWebOrderINTTableEntity')))"
+                        },
+                        "runAfter": {},
+                        "type": "AppendToStringVariable"
+                    }
+                },
+                "foreach": "@triggerBody()['items']",
+                "runAfter": {
+                    "Initialize_FinalMessage_variable": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Foreach"
+            },
+            "Post_batch_to_D365_DIXF": {
+                "inputs": {
+                    "authentication": {
+                        "audience": "https://patagoniad365.operations.dynamics.com",
+                        "clientId": "@body('Get_secret_D365ClientId')?['value']",
+                        "secret": "@body('Get_secret_D365Secret')?['value']",
+                        "tenant": "patagonia.com",
+                        "type": "ActiveDirectoryOAuth"
+                    },
+                    "body": "@concat('<Document>',variables('FinalMessage'),'</Document>')",
+                    "method": "POST",
+                    "uri": "https://patagoniad365.operations.dynamics.com/api/connector/enqueue/4EE00D62-3230-48C7-B1A4-B259B80898FF?entity=Patagonia%20composite%20web%20order%20entity&dataAreaId=1001"
+                },
+                "runAfter": {
+                    "Get_secret_D365Secret": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Http"
+            }
         },
-          "Get_secret_D365ClientId": {
-              "inputs": {
-                  "host": {
-                      "connection": {
-                          "referenceName": "keyvault"
-                      }
-                  },
-                  "method": "get",
-                  "path": "/secrets/@{encodeURIComponent('D365ClientId')}/value"
-              },
-              "runAfter": {
-                  "Create_blob": [
-                      "Succeeded"
-                  ]
-              },
-              "type": "ApiConnection"
-          },
-          "Get_secret_D365Secret": {
-              "inputs": {
-                  "host": {
-                      "connection": {
-                        "referenceName": "keyvault"
-                      }
-                  },
-                  "method": "get",
-                  "path": "/secrets/@{encodeURIComponent('D365Secret')}/value"
-              },
-              "runAfter": {
-                  "Get_secret_D365ClientId": [
-                      "Succeeded"
-                  ]
-              },
-              "type": "ApiConnection"
-          },
-          "Initialize_FinalMessage_variable": {
-              "inputs": {
-                  "variables": [
-                      {
-                          "name": "FinalMessage",
-                          "type": "String"
-                      }
-                  ]
-              },
-              "runAfter": {},
-              "type": "InitializeVariable"
-          },
-          "Initialize_blob_name_variable": {
-              "inputs": {
-                  "variables": [
-                      {
-                          "name": "BlobName",
-                          "type": "string",
-                          "value": "@{concat('1001-',guid('D'), '.xml')}"
-                      }
-                  ]
-              },
-              "runAfter": {
-                  "Loop_through_each_message_and_form_batch": [
-                      "Succeeded"
-                  ]
-              },
-              "type": "InitializeVariable"
-          },
-          "Loop_through_each_message_and_form_batch": {
-              "actions": {
-                  "Append_to_string_variable": {
-                      "inputs": {
-                          "name": "FinalMessage",
-                          "value": "@string(first(xpath(xml(items('Loop_through_each_message_and_form_batch')['content']), '//patWebOrderINTTableEntity')))"
-                      },
-                      "runAfter": {},
-                      "type": "AppendToStringVariable"
-                  }
-              },
-              "foreach": "@triggerBody()['items']",
-              "runAfter": {
-                  "Initialize_FinalMessage_variable": [
-                      "Succeeded"
-                  ]
-              },
-              "type": "Foreach"
-          },
-          "Post_batch_to_D365_DIXF": {
-              "inputs": {
-                  "authentication": {
-                      "audience": "https://patagoniad365.operations.dynamics.com",
-                      "clientId": "@body('Get_secret_D365ClientId')?['value']",
-                      "secret": "@body('Get_secret_D365Secret')?['value']",
-                      "tenant": "patagonia.com",
-                      "type": "ActiveDirectoryOAuth"
-                  },
-                  "body": "@concat('<Document>',variables('FinalMessage'),'</Document>')",
-                  "method": "POST",
-                  "uri": "https://patagoniad365.operations.dynamics.com/api/connector/enqueue/4EE00D62-3230-48C7-B1A4-B259B80898FF?entity=Patagonia%20composite%20web%20order%20entity&dataAreaId=1001"
-              },
-              "runAfter": {
-                  "Get_secret_D365Secret": [
-                      "Succeeded"
-                  ]
-              },
-              "type": "Http"
-          }
-      },
-      "contentVersion": "1.0.0.0",
-      "outputs": {},
-      "triggers": {
-          "Batch_messages": {
-              "inputs": {
-                  "configurations": {
-                      "D365Batch": {
-                          "releaseCriteria": {
-                              "messageCount": 4,
-                              "recurrence": {
-                                  "frequency": "Month",
-                                  "interval": 1
-                              }
-                          }
-                      }
-                  },
-                  "mode": "Inline"
-              },
-              "type": "Batch"
-          }
-      }
-  },
-  "kind": "Stateful"
-}
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "Batch_messages": {
+                "inputs": {
+                    "configurations": {
+                        "D365Batch": {
+                            "releaseCriteria": {
+                                "messageCount": 4,
+                                "recurrence": {
+                                    "frequency": "Month",
+                                    "interval": 1
+                                }
+                            }
+                        }
+                    },
+                    "mode": "Inline"
+                },
+                "type": "Batch"
+            }
+        }
+    },
+    "parameters": {
+        "blob_auth": {
+            "type":"object", 
+            "value": {
+                "type": "Raw",
+                "scheme": "Key",
+                "parameter": "oGmuBywIdoOqS6pLkmWBvXURvfuJHs0Z0EVjV1QaDGEI1peXq5N"
+            }
+        },
+        "keyvault_auth": {
+            "type":"object", 
+            "value": {
+                "type": "Raw",
+                "scheme": "Key",
+                "parameter": "ManagedServiceIdentity"
+            }
+        }
+    },
+    "kind": "Stateful"
+    }

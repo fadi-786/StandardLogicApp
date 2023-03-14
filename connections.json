@@ -1,29 +1,25 @@
-{
-  "managedApiConnections": {
-    "azureblob": {
-      "api": {
-        "id": "/subscriptions/4b46562d-6ca1-4f73-af11-311b72fd1399/providers/Microsoft.Web/locations/eastus/managedApis/azureblob"
+  {
+    "managedApiConnections": {
+      "azureblob": {
+        "api": {
+          "id": "/subscriptions/4b46562d-6ca1-4f73-af11-311b72fd1399/providers/Microsoft.Web/locations/eastus/managedApis/azureblob"
+        },
+        "connection": {
+          "id": "/subscriptions/4b46562d-6ca1-4f73-af11-311b72fd1399/resourceGroups/rg-fahad/providers/Microsoft.Web/connections/azureblob-3"
+        },
+        "connectionRuntimeUrl": "https://057cc1dbda968a58.03.common.logic-eastus.azure-apihub.net/apim/azureblob/e98b566603ac47eda6c111e4f62aa786",
+        "authentication": "@parameters('blob_auth')"
       },
-      "connection": {
-        "id": "/subscriptions/4b46562d-6ca1-4f73-af11-311b72fd1399/resourceGroups/rg-fahad/providers/Microsoft.Web/connections/azureblob"
-      },
-      "connectionRuntimeUrl": "https://057cc1dbda968a58.03.common.logic-eastus.azure-apihub.net/apim/azureblob/5bde41ca3de14c33857a880716740391",
-      "authentication": "@parameters('blob_auth')"
-    },
-    "keyvault": {
-      "api": {
-        "id": "/subscriptions/4b46562d-6ca1-4f73-af11-311b72fd1399/providers/Microsoft.Web/locations/eastus/managedApis/keyvault"
-      },
-      "connection": {
-        "id": "/subscriptions/4b46562d-6ca1-4f73-af11-311b72fd1399/resourceGroups/rg-fahad/providers/Microsoft.Web/connections/keyvault-2"
-      },
-      "connectionRuntimeUrl": "https://057cc1dbda968a58.03.common.logic-eastus.azure-apihub.net/apim/keyvault/bdb7058249f142818fe09c5c65153156"
+      "keyvault": {
+        "api": {
+          "id": "/subscriptions/4b46562d-6ca1-4f73-af11-311b72fd1399/providers/Microsoft.Web/locations/eastus/managedApis/keyvault"
+        },
+        "connection": {
+          "id": "/subscriptions/4b46562d-6ca1-4f73-af11-311b72fd1399/resourceGroups/rg-fahad/providers/Microsoft.Web/connections/keyvault-2"
+        },
+        "connectionRuntimeUrl": "https://057cc1dbda968a58.03.common.logic-eastus.azure-apihub.net/apim/keyvault/bdb7058249f142818fe09c5c65153156",
+        "authentication": "@parameters('keyvault_auth')"
+      }
     }
-  },
-  "connectionProperties": {  
-                "authentication": {   
-                    "audience": "https://vault.azure.net",  
-                    "type": "ManagedServiceIdentity"  
-                }  
-            }  
-}
+    
+  }

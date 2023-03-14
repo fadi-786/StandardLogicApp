@@ -1,0 +1,283 @@
+    {
+        "definition": {
+            "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+            "actions": {
+                "Condition": {
+                    "actions": {
+                        "For_each": {
+                            "actions": {
+                                "not_new_file": {
+                                    "actions": {
+                                        "Delete_blob_if_successful": {
+                                            "inputs": {
+                                                "host": {
+                                                    "connection": {
+                                                        "referenceName": "azureblob"
+                                                    }
+                                                },
+                                                "method": "delete",
+                                                "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(items('For_each')?['Path']))}"
+                                            },
+                                            "runAfter": {
+                                                "Post_batch_to_D365_DMF": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "ApiConnection"
+                                        },
+                                        "Get_blob_content_using_path": {
+                                            "inputs": {
+                                                "host": {
+                                                    "connection": {
+                                                        "referenceName": "azureblob"
+                                                    }
+                                                },
+                                                "method": "get",
+                                                "path": "/datasets/default/GetFileContentByPath",
+                                                "queries": {
+                                                    "inferContentType": true,
+                                                    "path": "@items('For_each')?['Path']",
+                                                    "queryParametersSingleEncoded": true
+                                                }
+                                            },
+                                            "runAfter": {},
+                                            "type": "ApiConnection"
+                                        },
+                                        "Post_batch_to_D365_DMF": {
+                                            "inputs": {
+                                                "authentication": {
+                                                    "audience": "https://patagoniad365.operations.dynamics.com",
+                                                    "clientId": "@body('Get_ClientId')?['value']",
+                                                    "secret": "@body('Get_Secret')?['value']",
+                                                    "tenant": "patagonia.com",
+                                                    "type": "ActiveDirectoryOAuth"
+                                                },
+                                                "body": "@body('Get_blob_content_using_path')",
+                                                "method": "POST",
+                                                "retryPolicy": {
+                                                    "type": "none"
+                                                },
+                                                "uri": "https://patagoniad365.operations.dynamics.com/api/connector/enqueue/4EE00D62-3230-48C7-B1A4-B259B80898FF?entity=Patagonia%20composite%20web%20order%20entity&dataAreaId=1001"
+                                            },
+                                            "runAfter": {
+                                                "Get_blob_content_using_path": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "Http"
+                                        }
+                                    },
+                                    "expression": {
+                                        "and": [
+                                            {
+                                                "less": [
+                                                    "@items('For_each')?['LastModified']",
+                                                    "@addMinutes(utcNow(), -10)"
+                                                ]
+                                            },
+                                            {
+                                                "equals": [
+                                                    "@startsWith(items('For_each')?['Name'],'1001-')",
+                                                    true
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    "runAfter": {},
+                                    "type": "If"
+                                }
+                            },
+                            "foreach": "@body('List_blobs')?['value']",
+                            "runAfter": {
+                                "Get_Secret": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Foreach"
+                        },
+                        "Get_ClientId": {
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "referenceName": "keyvault"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "/secrets/@{encodeURIComponent('D365ClientId')}/value"
+                            },
+                            "runAfter": {},
+                            "type": "ApiConnection"
+                        },
+                        "Get_Secret": {
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "referenceName": "keyvault"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "/secrets/@{encodeURIComponent('D365Secret')}/value"
+                            },
+                            "runAfter": {
+                                "Get_ClientId": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection"
+                        }
+                    },
+                    "expression": {
+                        "and": [
+                            {
+                                "not": {
+                                    "equals": [
+                                        "@length(array(body('List_blobs')?['value']))",
+                                        0
+                                    ]
+                                }
+                            }
+                        ]
+                    },
+                    "runAfter": {
+                        "List_blobs": [
+                                "Succeeded"
+                        ]
+                    },
+                    "type": "If"
+                },
+                "List_blobs": {
+                    "inputs": {
+                        "host": {
+                            "connection": {
+                                "referenceName": "azureblob"
+                            }
+                        },
+                        "method": "get",
+                        "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('AccountNameFromSettings'))}/files/@{encodeURIComponent(encodeURIComponent('JTJmdGVzdGluZy1ibG9icyUyZnRlc3QuanNvbg=='))}/content",
+                        "queries": {
+                            "nextPageMarker": "",
+                            "useFlatListing": false
+                        }
+                    },
+                    "runAfter": {},
+                    "type": "ApiConnection"
+                }
+            },
+            "contentVersion": "1.0.0.0",
+            "outputs": {},
+            "triggers": {
+                "Recurrence": {
+                    "evaluatedRecurrence": {
+                        "frequency": "Week",
+                        "interval": 1,
+                        "schedule": {
+                            "hours": [
+                                "0",
+                                "1",
+                                "2",
+                                "3",
+                                "4",
+                                "5",
+                                "6",
+                                "7",
+                                "8",
+                                "9",
+                                "10",
+                                "11",
+                                "12",
+                                "13",
+                                "14",
+                                "15",
+                                "16",
+                                "17",
+                                "18",
+                                "19",
+                                "20",
+                                "21",
+                                "22",
+                                "23"
+                            ],
+                            "minutes": [
+                                0
+                            ],
+                            "weekDays": [
+                                "Monday",
+                                "Tuesday",
+                                "Wednesday",
+                                "Thursday",
+                                "Friday",
+                                "Saturday",
+                                "Sunday"
+                            ]
+                        },
+                        "timeZone": "Pacific Standard Time"
+                    },
+                    "recurrence": {
+                        "frequency": "Week",
+                        "interval": 1,
+                        "schedule": {
+                            "hours": [
+                                "0",
+                                "1",
+                                "2",
+                                "3",
+                                "4",
+                                "5",
+                                "6",
+                                "7",
+                                "8",
+                                "9",
+                                "10",
+                                "11",
+                                "12",
+                                "13",
+                                "14",
+                                "15",
+                                "16",
+                                "17",
+                                "18",
+                                "19",
+                                "20",
+                                "21",
+                                "22",
+                                "23"
+                            ],
+                            "minutes": [
+                                0
+                            ],
+                            "weekDays": [
+                                "Monday",
+                                "Tuesday",
+                                "Wednesday",
+                                "Thursday",
+                                "Friday",
+                                "Saturday",
+                                "Sunday"
+                            ]
+                        },
+                        "timeZone": "Pacific Standard Time"
+                    },
+                    "type": "Recurrence"
+                }
+            }
+        },
+        "parameters": {
+            "blob_auth": {
+                "type":"object", 
+                "value": {
+                    "type": "Raw",
+                    "scheme": "Key",
+                    "parameter": "oGmuBywIdoOqS6pLkmWBvXURvfuJHs0Z0EVjV1QaDGEI1peXq5N"
+                }
+            },
+            "keyvault_auth": {
+                "type":"object", 
+                "value": {
+                    "type": "Raw",
+                    "scheme": "Key",
+                    "parameter": "ManagedServiceIdentity"
+                }
+            }
+        },
+        "kind": "Stateful"
+    }
