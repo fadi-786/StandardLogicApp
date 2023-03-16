@@ -1,0 +1,272 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "For_each": {
+                "actions": {
+                    "Check_if_it_is_a_File_or_a_Folder": {
+                        "actions": {
+                            "Decode_csv_to_xml": {
+                                "inputs": {
+                                    "body": "@body('Get_ElasticOrder_file_content')",
+                                    "function": {
+                                        "id": "[concat(parameters('sites_DecodeFlatFile_005056aa2d9a_Prod_externalid'), '/functions/DecodeFlatFile')]"
+                                    },
+                                    "queries": {
+                                        "name": "ELA"
+                                    }
+                                },
+                                "runAfter": {
+                                    "Get_ElasticOrder_file_content": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                "type": "Function"
+                            },
+                            "Delete_ElasticOrder_source_file": {
+                                "inputs": {
+                                    "host": {
+                                        "connection": {
+                                            "referenceName": "azureblob"
+                                        }
+                                    },
+                                    "method": "delete",
+                                    "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent(items('For_each')?['Path']))}"
+                                },
+                                "runAfter": {
+                                    "For_each_2": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                "type": "ApiConnection"
+                            },
+                            "For_each_2": {
+                                "actions": {
+                                    "OM.SO.CreateOrder.Wholesale.Batch.V3.US": {
+                                        "inputs": {
+                                            "batchName": "d365batch",
+                                            "content": "@body('Transform_SOCanonical_to_D365WebOrder')",
+                                            "host": {
+                                                "triggerName": "Batch_messages",
+                                                "workflow": {
+                                                    "id": "[resourceId('Microsoft.Logic/workflows', parameters('workflows_OM_SO_CreateOrder_Wholesale_Batch_V3_US_name'))]"
+                                                }
+                                            }
+                                        },
+                                        "runAfter": {
+                                            "Transform_SOCanonical_to_D365WebOrder": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "SendToBatch"
+                                    },
+                                    "Transform_ElasticOrder_to_SOCanonical": {
+                                        "inputs": {
+                                            "content": "@{decodeBase64(items('For_each_2')?['Message'])}",
+                                            "map": {
+                                                "name": "ElasticOrderToSOCanonical.xslt",
+                                                "source": "LogicApp"
+                                            }
+                                        },
+                                        "runAfter": {},
+                                        "type": "Xslt"
+                                    },
+                                    "Transform_SOCanonical_to_D365WebOrder": {
+                                        "inputs": {
+                                            "content": "@{body('Transform_ElasticOrder_to_SOCanonical')}",
+                                            "map": {
+                                                "name": "SOCanonicalToD365WebOrder.xslt",
+                                                "source": "LogicApp"
+                                            },
+                                            "xsltParameters": {
+                                                "input:ConnString": "Server=tcp:uswstssdax101.database.windows.net,1433;Initial Catalog=USWSTDBDAX101;Persist Security Info=False;User ID=CreateOrderConnect;Password=DdfFH8rU2g;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=60;"
+                                            }
+                                        },
+                                        "runAfter": {
+                                            "Transform_ElasticOrder_to_SOCanonical": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "Xslt"
+                                    }
+                                },
+                                "foreach": "@body('Parse_JSON')?['ResponseMessage']",
+                                "runAfter": {
+                                    "Parse_JSON": [
+                                        "Succeeded"
+                                    ],
+                                    "Save_ElasticOrder_in_Blob": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                "type": "Foreach"
+                            },
+                            "Get_ElasticOrder_file_content": {
+                                "inputs": {
+                                    "host": {
+                                        "connection": {
+                                            "name": "@parameters('$connections')['sftp_1']['connectionId']"
+                                        }
+                                    },
+                                    "method": "get",
+                                    "path": "/datasets/default/GetFileContentByPath",
+                                    "queries": {
+                                        "inferContentType": true,
+                                        "path": "@items('For_each')?['Path']",
+                                        "queryParametersSingleEncoded": true
+                                    }
+                                },
+                                "runAfter": {},
+                                "type": "ApiConnection"
+                            },
+                            "Parse_JSON": {
+                                "inputs": {
+                                    "content": "@body('Decode_csv_to_xml')",
+                                    "schema": {
+                                        "properties": {
+                                            "ResponseMessage": {
+                                                "items": {
+                                                    "properties": {
+                                                        "Message": {
+                                                            "type": "string"
+                                                        },
+                                                        "StyleNo": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "StyleNo",
+                                                        "Message"
+                                                    ],
+                                                    "type": "object"
+                                                },
+                                                "type": "array"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                },
+                                "runAfter": {
+                                    "Decode_csv_to_xml": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                "type": "ParseJson"
+                            },
+                            "Save_ElasticOrder_in_Blob": {
+                                "inputs": {
+                                    "body": "@body('Get_ElasticOrder_file_content')",
+                                    "host": {
+                                        "connection": {
+                                            "referenceName": "azureblob"
+                                        }
+                                    },
+                                    "method": "post",
+                                    "path": "/datasets/default/files",
+                                    "queries": {
+                                        "folderPath": "/elasticordering/us",
+                                        "name": "@items('For_each')?['DisplayName']",
+                                        "queryParametersSingleEncoded": true
+                                    }
+                                },
+                                "runAfter": {
+                                    "Get_ElasticOrder_file_content": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                "runtimeConfiguration": {
+                                    "contentTransfer": {
+                                        "transferMode": "Chunked"
+                                    }
+                                },
+                                "trackedProperties": {
+                                    "BlobUrl": "@{concat('https://USWSTRGESB102.blob.core.windows.net/',body('Save_ElasticOrder_in_Blob')?['Path'])}"
+                                },
+                                "type": "ApiConnection"
+                            }
+                        },
+                        "expression": {
+                            "and": [
+                                {
+                                    "equals": [
+                                        "@items('For_each')?['IsFolder']",
+                                        false
+                                    ]
+                                },
+                                {
+                                    "equals": [
+                                        "@startsWith(items('For_each')?['DisplayName'], '1001-')",
+                                        true
+                                    ]
+                                }
+                            ]
+                        },
+                        "runAfter": {},
+                        "type": "If"
+                    }
+                },
+                "foreach": "@body('List_files_in_folder')",
+                "runAfter": {
+                    "List_files_in_folder": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Foreach"
+            },
+            "List_files_in_folder": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "referenceName": "azureblob"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/datasets/default/folders/@{encodeURIComponent(encodeURIComponent('/order_documents/D365/'))}"
+                },
+                "runAfter": {},
+                "type": "ApiConnection"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "triggers": {
+            "Recurrence": {
+                "evaluatedRecurrence": {
+                    "frequency": "Minute",
+                    "interval": 5,
+                    "timeZone": "Pacific Standard Time"
+                },
+                "recurrence": {
+                    "frequency": "Minute",
+                    "interval": 5,
+                    "timeZone": "Pacific Standard Time"
+                },
+                "runtimeConfiguration": {
+                    "concurrency": {
+                        "runs": 1
+                    }
+                },
+                "type": "Recurrence"
+            }
+        }
+    },
+    "parameters": {
+        "blob_auth": {
+            "type":"object", 
+            "value": {
+                "type": "Raw",
+                "scheme": "Key",
+                "parameter": "oGmuBywIdoOqS6pLkmWBvXURvfuJHs0Z0EVjV1QaDGEI1peXq5N"
+            }
+        },
+        "keyvault_auth": {
+            "type":"object", 
+            "value": {
+                "type": "Raw",
+                "scheme": "Key",
+                "parameter": "ManagedServiceIdentity"
+            }
+        }
+    },
+    "kind": "Stateful"
+}
